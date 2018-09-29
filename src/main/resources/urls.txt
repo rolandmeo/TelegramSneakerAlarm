@@ -1,0 +1,4 @@
+AFEW,https://www.afew-store.com/de/sneaker/,true
+GloryHole,http://www.gloryholeshop.com/collections/sneaker,true
+FlaggshipStore,https://flaggship.de/collections/men,true
+TrueVintage,https://truevintage.com/collections/new,true
