@@ -1,7 +1,7 @@
-#TelegramSneakerBot
-## A Telegram bot alarming registered Telegram chats on updates at the registered sites
+# TelegramSneakerBot
+## A Telegram bot notifying registered Telegram chats on updates on the registered sites
 
-###Quickstart
+### Quickstart
 Add the following Scala objects to $/src/main/scala/credentials/$
 
 ```
