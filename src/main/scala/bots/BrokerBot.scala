@@ -9,16 +9,17 @@ import actors.Broker.{RegisterChat, StartDistributor}
 import akka.actor.ActorRef
 import info.mukel.telegrambot4s.api._
 import info.mukel.telegrambot4s.api.declarative.Commands
+import model.CheckerInitData
 
 import scala.concurrent.ExecutionContext
 
-class BrokerBot(telegramBotToken: String, chatIds: Set[Long], urls: Set[(String, String, Boolean)])
+class BrokerBot(telegramBotToken: String, chatIds: Set[Long], checkerInitDatas: Set[CheckerInitData])
                (implicit executionContext: ExecutionContext)
   extends TelegramBot with Polling with Commands {
 
   implicit val requestHandler: RequestHandler = request
 
-  private val singleBroker = system.actorOf(Broker.props(chatIds, urls), "Broker")
+  private val singleBroker = system.actorOf(Broker.props(chatIds, checkerInitDatas), "Broker")
 
   def broker: Option[ActorRef] = Some(singleBroker)
 

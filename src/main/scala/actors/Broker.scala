@@ -7,23 +7,24 @@ package actors
 import java.nio.file.Paths
 import java.nio.file.StandardOpenOption.{APPEND, CREATE, WRITE}
 
+import actors.BaseChecker.CheckIt
 import actors.Broker.{NotifyAll, RegisterChat, StartDistributor, UnregisterUrl}
 import actors.Worker.WorkerSendText
-import actors.checkers.SimpleUrlDiffChecker
-import actors.checkers.SimpleUrlDiffChecker.CheckIt
+import actors.checkers.DomDiffChecker
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{FileIO, Keep, Source}
 import akka.util.ByteString
 import credentials.FilePaths
 import info.mukel.telegrambot4s.api.RequestHandler
+import model.CheckerInitData
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 import scala.util.Random
 
-class Broker(chatIds: Set[Long], urls: Set[(String, String, Boolean)])
+class Broker(chatIds: Set[Long], checkerInitDatas: Set[CheckerInitData])
             (implicit val system: ActorSystem,
              request: RequestHandler,
              materializer: Materializer,
@@ -37,7 +38,7 @@ class Broker(chatIds: Set[Long], urls: Set[(String, String, Boolean)])
   // nasty mutables! °;,,;°
   private val chatIdz: mutable.Set[Long] = mutable.Set(chatIds.toSeq: _*)
   private val workerActors: mutable.Map[Long, ActorRef] = mutable.Map.empty
-  private val simpleUrlDiffCheckerActors: mutable.Map[String, ActorRef] = mutable.Map.empty
+  private val checkerActors: mutable.Map[String, ActorRef] = mutable.Map.empty
 
   def receive: Receive = {
     case StartDistributor => setupWorkersAndUrlCheckersAndNotifyChats()
@@ -51,8 +52,8 @@ class Broker(chatIds: Set[Long], urls: Set[(String, String, Boolean)])
     case _ => log.warning(s"${self.path.name} received invalid Command")
   }
 
-  def unregisterUrlChecker(urlCheckerName: String): Unit = {
-    simpleUrlDiffCheckerActors.remove(urlCheckerName)
+  private def unregisterUrlChecker(urlCheckerName: String): Unit = {
+    checkerActors.remove(urlCheckerName)
     log.warning(s"${self.path.name} received invalid Command")
   }
 
@@ -64,13 +65,19 @@ class Broker(chatIds: Set[Long], urls: Set[(String, String, Boolean)])
     workerActors.values.foreach(_ ! WorkerSendText("The System is up and running!"))
     log.info(s"Started ${self.path.name} with ${workerActors.size} Workers")
 
-    // Start UrlCheckers
-    urls.filter(_._3).
-      foreach(triple => simpleUrlDiffCheckerActors.put(triple._1, system.actorOf(SimpleUrlDiffChecker.props(triple._2, self), s"${triple._1}")))
-    log.info(s"Started ${self.path.name} with ${simpleUrlDiffCheckerActors.size} SimpleUrlDiffCheckers")
+    // Start Checkers
+    checkerInitDatas.filter(_.isValid)
+      .foreach(checkerInitData => {
+        val maybeProps = CheckerInitData.props(checkerInitData)(self)
+        maybeProps.foreach(props =>
+          checkerActors.put(checkerInitData.name, system.actorOf(props, s"${checkerInitData.name}"))
+        )
+      })
+
+    log.info(s"Started ${self.path.name} with ${checkerActors.size} Checkers")
 
     system.scheduler
-      .schedule(random.nextInt(maxRefreshDelay) seconds, refreshMinutes minutes)(simpleUrlDiffCheckerActors.values.foreach(_ ! CheckIt))
+      .schedule(random.nextInt(maxRefreshDelay) seconds, refreshMinutes minutes)(checkerActors.values.foreach(_ ! CheckIt))
   }
 
   private def registerNewChat(chatId: Long): Unit = {
@@ -96,11 +103,11 @@ class Broker(chatIds: Set[Long], urls: Set[(String, String, Boolean)])
 }
 
 object Broker {
-  def props(chatIds: Set[Long], urls: Set[(String, String, Boolean)])
+  def props(chatIds: Set[Long], checkerInitDatas: Set[CheckerInitData])
            (implicit system: ActorSystem,
             request: RequestHandler,
             materializer: Materializer,
-            executor: ExecutionContext): Props = Props(new Broker(chatIds, urls))
+            executor: ExecutionContext): Props = Props(new Broker(chatIds, checkerInitDatas))
 
   final case class StartDistributor()
 

@@ -12,6 +12,7 @@ import akka.stream.scaladsl.{FileIO, Framing}
 import akka.util.ByteString
 import bots.BrokerBot
 import credentials.{BotCredentials, FilePaths}
+import model.CheckerInitData
 
 import scala.concurrent.{ExecutionContext, Future}
 
@@ -29,20 +30,27 @@ object BotApp extends App {
     .map(_.toLong)
     .runFold(List.empty[Long])((list, item) => item :: list)
 
-  private val urlTriples: Future[List[(String, String, Boolean)]] = FileIO.fromPath(Paths.get(FilePaths.urls))
+  private val urlTriples: Future[List[CheckerInitData]] = FileIO.fromPath(Paths.get(FilePaths.urls))
     .via(Framing.delimiter(ByteString("\n"), 256).map(_.utf8String))
+    .prefixAndTail(1)
+    .flatMapConcat(_._2)
     .map { string =>
       val strings = string.split(",")
-      (strings(0).replace(" ", ""), strings(1), strings(2).toBoolean)
+      CheckerInitData(
+        strings(0).replace(" ", ""),
+        strings(1),
+        strings(2),
+        strings(3).toBoolean
+      )
     }
-    .runFold(List.empty[(String, String, Boolean)])((list, item) => item :: list)
+    .runFold(List.empty[CheckerInitData])((list, item) => item :: list)
 
   for {
     chats <- chatIds
-    urls <- urlTriples
+    checkerInitDatas <- urlTriples
   } yield {
     println("Done Fetching Urls and ChatIds")
-    new BrokerBot(token, chats.toSet, urls.toSet).run()
+    new BrokerBot(token, chats.toSet, checkerInitDatas.toSet).run()
   }
 
 }

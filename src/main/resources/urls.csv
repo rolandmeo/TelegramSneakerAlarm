@@ -1,0 +1,5 @@
+Name,Url,CheckerType,isValid
+AFEW,https://www.afew-store.com/de/sneaker/,DomDiffChecker,true
+GloryHole,http://www.gloryholeshop.com/collections/sneaker,DomDiffChecker,true
+FlaggshipStore,https://flaggship.de/collections/men,DomDiffChecker,true
+TrueVintage,https://truevintage.com/collections/new,DomDiffChecker,true
