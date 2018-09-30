@@ -2,7 +2,7 @@
 ## A Telegram bot notifying registered Telegram chats on updates on the registered sites
 
 ### Quickstart
-Add the following Scala objects to $/src/main/scala/credentials/$
+Add the following Scala objects to */src/main/scala/credentials/*
 
 ```
 package credentials
