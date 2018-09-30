@@ -20,7 +20,6 @@ class DomDiffChecker(url: String, broker: ActorRef)(implicit executionContext: E
     .map(_.replaceAll("""<(?!\/?a(?=>|\s.*>))\/?.*?>""", ""))
     .map(Md5Hasher.hash)
 
-
 }
 
 object DomDiffChecker {
