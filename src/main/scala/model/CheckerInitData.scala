@@ -1,6 +1,5 @@
 package model
 
-import actors.BaseChecker
 import actors.checkers.{DomDiffChecker, HttpStringChecker}
 import akka.actor.{ActorRef, Props}
 
@@ -15,13 +14,14 @@ case class CheckerInitData(
 
 object CheckerInitData {
 
-  def props(checkerInitData: CheckerInitData)(broker: ActorRef)(implicit executionContext: ExecutionContext): Option[Props] = {
+  def props(checkerInitData: CheckerInitData)(broker: ActorRef, differenceFinder: ActorRef)
+           (implicit executionContext: ExecutionContext): Option[Props] = {
     val httpStringChecker = classOf[HttpStringChecker].getSimpleName
     val domDiffChecker   = classOf[DomDiffChecker].getSimpleName
 
     checkerInitData.checkerType match {
-      case `httpStringChecker` => Some(HttpStringChecker.props(checkerInitData.url, broker))
-      case `domDiffChecker` => Some(DomDiffChecker.props(checkerInitData.url, broker))
+      case `httpStringChecker` => Some(HttpStringChecker.props(checkerInitData.url, broker, differenceFinder))
+      case `domDiffChecker` => Some(DomDiffChecker.props(checkerInitData.url, broker, differenceFinder))
       case _ => None
     }
   }

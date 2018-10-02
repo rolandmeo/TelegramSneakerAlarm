@@ -10,11 +10,11 @@ import java.nio.file.StandardOpenOption.{APPEND, CREATE, WRITE}
 import actors.BaseChecker.CheckIt
 import actors.Broker.{NotifyAll, RegisterChat, StartDistributor, UnregisterUrl}
 import actors.Worker.WorkerSendText
-import actors.checkers.DomDiffChecker
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorSystem, Props}
 import akka.stream.Materializer
 import akka.stream.scaladsl.{FileIO, Keep, Source}
 import akka.util.ByteString
+import com.lightbend.emoji.Emoji
 import credentials.FilePaths
 import info.mukel.telegrambot4s.api.RequestHandler
 import model.CheckerInitData
@@ -34,6 +34,7 @@ class Broker(chatIds: Set[Long], checkerInitDatas: Set[CheckerInitData])
   private val refreshMinutes = 1
   private val maxRefreshDelay = 20
   private val random = Random
+  private val differenceFinder =system.actorOf(DifferenceFinder.props(self))
 
   // nasty mutables! °;,,;°
   private val chatIdz: mutable.Set[Long] = mutable.Set(chatIds.toSeq: _*)
@@ -62,13 +63,14 @@ class Broker(chatIds: Set[Long], checkerInitDatas: Set[CheckerInitData])
   private def setupWorkersAndUrlCheckersAndNotifyChats(): Unit = {
     // Start Workers and notify clients
     chatIdz.foreach(id => workerActors.put(id, system.actorOf(Worker.props(id), s"Worker$id")))
-    workerActors.values.foreach(_ ! WorkerSendText("The System is up and running!"))
+    workerActors.values.foreach(_ ! WorkerSendText(s"${Emoji.get(0x1F38A).getOrElse("")}" +
+      s"*The System is up and running!*${Emoji.get(0x1F389).getOrElse("")}"))
     log.info(s"Started ${self.path.name} with ${workerActors.size} Workers")
 
     // Start Checkers
     checkerInitDatas.filter(_.isValid)
       .foreach(checkerInitData => {
-        val maybeProps = CheckerInitData.props(checkerInitData)(self)
+        val maybeProps = CheckerInitData.props(checkerInitData)(self,differenceFinder)
         maybeProps.foreach(props =>
           checkerActors.put(checkerInitData.name, system.actorOf(props, s"${checkerInitData.name}"))
         )
@@ -85,7 +87,7 @@ class Broker(chatIds: Set[Long], checkerInitDatas: Set[CheckerInitData])
       chatIdz += chatId
       val newWorker = system.actorOf(Worker.props(chatId), s"Worker$chatId")
       workerActors += (chatId -> newWorker)
-      newWorker ! WorkerSendText("You are now registered to the System")
+      newWorker ! WorkerSendText(s"You are now registered to the System ${Emoji.get(0x1F44D).getOrElse("")}")
       log.info(s"Registered new ${newWorker.path.name}")
 
       Source(List(chatId))
@@ -93,9 +95,9 @@ class Broker(chatIds: Set[Long], checkerInitDatas: Set[CheckerInitData])
         .toMat(FileIO.toPath(Paths.get(FilePaths.chats), Set(WRITE, APPEND, CREATE)))(Keep.right)
         .run()
 
-
     } else {
-      workerActors(chatId) ! WorkerSendText("You are already registered to the System")
+      workerActors(chatId) ! WorkerSendText(s"You are already registered to the System " +
+        s"${Emoji.get(0x1F64F).getOrElse("")}")
       log.info(s"ChatId $chatId is already registered")
     }
   }

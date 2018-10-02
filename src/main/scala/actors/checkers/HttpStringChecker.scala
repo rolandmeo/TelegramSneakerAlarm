@@ -4,15 +4,16 @@ import java.net.URL
 
 import actors.BaseChecker
 import akka.actor.{ActorRef, PoisonPill, Props}
-import app.TestStufff.baseDomain
+import net.ruippeixotog.scalascraper.model.Document
 import utils.Md5Hasher
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.Try
 import scala.util.matching.Regex
 
-class HttpStringChecker(url: String, broker: ActorRef)(implicit executionContext: ExecutionContext)
-  extends BaseChecker(url, broker) {
+class HttpStringChecker(url: String, broker: ActorRef, differenceFinder: ActorRef)
+                       (implicit executionContext: ExecutionContext)
+  extends BaseChecker(url, broker, differenceFinder) {
 
   private val baseDomain = Try {
     new URL(url)
@@ -21,13 +22,13 @@ class HttpStringChecker(url: String, broker: ActorRef)(implicit executionContext
     (""""(https?:\/\/w{0,3}\.?""" + h.replaceFirst("www", "") +"""[\/\S]{1,})\"""").r
   )
 
-  override def createCheckable: Future[String] = {
-    getPageDocument
+  override def createCheckable(newDom: Option[Document]): Option[String] =
+    newDom
       .map(_.body.toString)
       .filter(_ => regex.nonEmpty)
       .map(regex.get.findAllIn(_).toSet.toList.sorted.reduce(_ + _))
       .map(Md5Hasher.hash)
-  }
+
 
   override def receive: Receive = {
     if (baseDomain.isEmpty) self ! PoisonPill
@@ -36,5 +37,7 @@ class HttpStringChecker(url: String, broker: ActorRef)(implicit executionContext
 }
 
 object HttpStringChecker {
-  def props(url: String, broker: ActorRef)(implicit executionContext: ExecutionContext): Props = Props(new HttpStringChecker(url, broker))
+  def props(url: String, broker: ActorRef, differenceFinder: ActorRef)
+           (implicit executionContext: ExecutionContext): Props =
+    Props(new HttpStringChecker(url, broker, differenceFinder))
 }
