@@ -40,7 +40,7 @@ class BrokerBot(telegramBotToken: String, chatIds: Set[Long], checkerInitDatas: 
   onCommand("/help","/Help"){ implicit msg =>
     reply(
       s"""
-        | Hi this is the ${Emoji.get(0x1F45F).getOrElse("")}*SnkrBotAlarm* ${Emoji.get(0x1F45F).getOrElse("")}
+        | Hi this is the ${Emoji.get(0x1F45F).getOrElse("")} *SnkrBotAlarm* ${Emoji.get(0x1F45F).getOrElse("")}
         |
         |   to *register* just send /register
         |
