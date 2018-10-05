@@ -34,7 +34,10 @@ object BotApp extends App {
     .via(Framing.delimiter(ByteString("\n"), 256).map(_.utf8String))
     .prefixAndTail(1)
     .flatMapConcat(_._2)
-    .map { string =>
+    .map (convertStringToCheckerInitData)
+    .runFold(List.empty[CheckerInitData])((list, item) => item :: list)
+
+  private def convertStringToCheckerInitData(string:String): CheckerInitData = {
       val strings = string.split(",")
       CheckerInitData(
         strings(0).replace(" ", ""),
@@ -42,8 +45,7 @@ object BotApp extends App {
         strings(2),
         strings(3).toBoolean
       )
-    }
-    .runFold(List.empty[CheckerInitData])((list, item) => item :: list)
+  }
 
   for {
     chats <- chatIds

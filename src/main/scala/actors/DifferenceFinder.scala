@@ -27,26 +27,40 @@ class DifferenceFinder(broker: ActorRef) extends Actor with ActorLogging {
     if (oldDocument == null || newDocument == null) {
       return
     }
-    val diff = StringUtils.difference(oldDocument, newDocument)
 
-    val linksHttp = DifferenceFinder.findAllHttpStrings(diff, url)
-    val linksLinkTags = DifferenceFinder.findAllLinkTags(diff, url)
+    val linksHttpOld = DifferenceFinder.findAllHttpStrings(oldDocument, url)
+    val linksLinkTagsOld = DifferenceFinder.findAllLinkTags(oldDocument, url)
 
-    val result = DifferenceFinder.filterUniqueUrls(linksHttp, linksLinkTags)
+    val linksHttpNew = DifferenceFinder.findAllHttpStrings(newDocument, url)
+    val linksLinkTagsNew = DifferenceFinder.findAllLinkTags(newDocument, url)
 
-    val messageHead = s"*$contractorName* had an update ${Emoji.get(0x1F631).getOrElse("")}\n\n"
-    val messageBody = result.map(string => Try {
-      new URL(string)
-    }.toOption)
-      .filter(_.nonEmpty)
-      .map(_.get)
-      .map(url => {
-        val path = url.toURI.getPath
-        s"[${path.substring(path.lastIndexOf('/' + 1))}](${url.toString})\n"
-      })
-      .reduce(_ + _)
+    val allUniqueLinksOld = DifferenceFinder.filterUniqueUrls(linksHttpOld, linksLinkTagsOld)
+    val allUniqueLinksNew = DifferenceFinder.filterUniqueUrls(linksHttpNew, linksLinkTagsNew)
 
-    broker ! NotifyAll(messageHead + messageBody)
+    val result = allUniqueLinksNew.diff(allUniqueLinksOld)
+
+    if(result.nonEmpty) {
+      val messageHead = s"*$contractorName* had an update ${Emoji.get(0x1F631).getOrElse("")}\n\n"
+      val messageBody = result.map(DifferenceFinder.getUrl)
+        .filter(_.nonEmpty)
+        .map(_.get)
+        .map(url => {
+          val path = url.getPath
+          val symbolAfterLastSlash = path.lastIndexOf('/' + 1)
+          s"[${
+            path.substring(
+              // wenn mindestens noch 3 zeichen vorhanden sind nach dem slash und vorhanden (> -1)
+              if (symbolAfterLastSlash < path.length - 3 && symbolAfterLastSlash >= 0) symbolAfterLastSlash else 0
+            )
+          }](${url.toString})\n"
+        })
+        .reduce(_ + _)
+
+      log.warning(s"${self.path.name} found ${result.size} new Links on $contractorName!!!")
+      broker ! NotifyAll(messageHead + messageBody)
+    } else {
+      log.warning(s"${self.path.name} couldn't find any new Links on $contractorName...")
+    }
   }
 
 }
@@ -90,9 +104,7 @@ object DifferenceFinder {
   def filterUniqueUrls(linkStrings: Set[String]*): Set[String] = {
     linkStrings
       .reduce(_ ++ _)
-      .map(string => Try {
-        new URL(string)
-      }.toOption)
+      .map(getUrl)
       .filter(_.nonEmpty)
       .filter(url => FilenameUtils.getExtension(url.get.getPath) == "")
       .map(urlOpt => (urlOpt.get, urlOpt.get.getPath))
